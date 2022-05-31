@@ -28,10 +28,32 @@ const sessionOption = {
   store: new RedisStore({ client: redisClient }),
 };
 if (process.env.NODE_ENV === 'production') {
+  app.enable('truest proxy');
   sessionOption.proxy = true; //앞단에 nginx 와같은 서버가 있기떄문에 tru를 설정한다.
   // sessionOption.cookie.secure = true;  //https 적용했으면 주석제거
 }
 app.use(session(sessionOption));
+
+https 사용 시
+secure: true 변경
+app.enable('truest proxy');
+
+```
+### helmet, hpp로 보안 관리하기
+모든 취약점을 방어해주진 않지만 실무에서 필수인 패키지
+- 배포 환경일 때만 사용하면 됨
+`npm i helmet hpp`
+```
+const helmet = require('helmet'); //보안관련
+const hpp = require('hpp'); //보안관련
+if (process.env.NODE_ENV === 'production') {
+  app.enable('truest proxy');
+  app.use(morgan('combined'));
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(hpp());
+} else {
+  app.use(morgan('dev'));
+}
 ```
 
 ### sequelize
@@ -52,11 +74,12 @@ npm i cross-env
 
 ```
   "scripts": {
-    "start": "cross-env NODE_ENV=production PORT=80 pm2 start server.js -i 0",
+    "start": "cross-env NODE_ENV=production PORT=80 node server",
     "dev": "nodemon server",
     "test": "jest"
   },
 ```
+
 ### sanitize-html
 XSS(Cross Site Scripting) 공격 방어
 - npm i sanitize-html
@@ -87,11 +110,13 @@ app.post('/form', csrfProtection, (req, res) => {
 
 ### pm2 소개
 - 원활한 서버 운영을 위한 패키지
+- 서버를 1에서 2로 변경할때 매끄럽게 변경해줌
 - 서버가 에러로 인해 꺼졌을 때 서버를 다시 켜 줌
 - 멀티 프로세싱 지원(노드 프로세스 수를 1개 이상으로 늘릴 수 있음)
 - 요청을 프로세스들에 고르게 분배
 - 단점: 프로세스간 서버의 메모리 같은 자원 공유 불가
 - 극복: memcached나 redis같은 메모리 DB 사용(공유 메모리를 별도 DB에 저장)
+  - 서버 1, 2, 3, 4에 로그인 공유는 redis로 할수 있다.
 
 ### pm2 사용하기
 - pm2 전역 설치 후, 명령어 사용
@@ -103,12 +128,16 @@ app.post('/form', csrfProtection, (req, res) => {
   },
 ```
 - pm2 start 파일명으로 실행
+```
+npx pm2 start server.js
+```
 
-### 프로세스 목록 확인하기
+### pm2 프로세스 목록 확인하기
 pm2 list로 프로세스 목록 확인 가능
 - 프로세스가 백그라운드로 돌아가기 때문에 콘솔에 다른 명령어 입력 가능
+`npx pm2 list` 동작중인 서버 확인 가능
 
-### pm2로 멀티 프로세싱하기
+### pm2 멀티 프로세싱하기
 pm2 start [파일명] –i [프로세스 수] 명령어로 멀티 프로세싱 가능
 - 프로세스 수에 원하는 프로세스의 수 입력
 - 0이면 CPU 코어 개수만큼 생성, -1이면 CPU 코어 개수보다 1개 적게 생성
@@ -118,14 +147,20 @@ pm2 start [파일명] –i [프로세스 수] 명령어로 멀티 프로세싱 �
     "start": "cross-env NODE_ENV=production PORT=80 pm2 start server.js -i 0",
   },
 ```
-### 서버 종료 후 멀티 프로세싱 하기
+### pm2 서버 종료 후 멀티 프로세싱 하기
 pm2 kill로 프로세스 전체 종료 가능
 `npx pm2 kill && npm start`
 
-### 프로세스 모니터링하기
+### pm2 전체서버 재시작
+`npx pm2 reload all`
+
+### pm2 프로세스 모니터링하기
 pm2 monit으로 프로세스 모니터링
 - 프로세스별로 로그를 실시간으로 볼 수 있음
 `npx pm2 monit`
+
+### pm2 history
+`pm2 logs --err` 에러로그 확인
 
 ### winston
 console.log와 console.error를 대체하기 위한 모듈
@@ -164,6 +199,18 @@ createLogger로 로거 인스턴스를 생성
 - new transports.File은 파일로 저장한다는 뜻, new transports.Console은 콘솔에 출력한다는 뜻
 - 인자로 filename(파일명), level(심각도) 제공
 
+### winston setup
+```
+const logger = createLogger({
+  level: 'info',
+  format: format.json(),
+  transports: [
+    new transports.File({ filename: 'combined.log' }),
+    new transports.File({ filename: 'error.log', level: 'error' })
+  ],
+})
+```
+
 ### winston 적용하기
 기존의 console 대신 logger로 사용한다 생각하면 됨
 ```
@@ -195,19 +242,3 @@ error.log
 ```
 - 파일에 로그가 저장되어 관리 가능
 - winston-daily-rotate-file이라는 패키지로 날짜별로 관리 가능
-
-### helmet, hpp로 보안 관리하기
-모든 취약점을 방어해주진 않지만 실무에서 필수인 패키지
-- 배포 환경일 때만 사용하면 됨
-`npm i helmet hpp`
-```
-const helmet = require('helmet'); //보안관련
-const hpp = require('hpp'); //보안관련
-if (process.env.NODE_ENV === 'production') {
-  app.use(morgan('combined'));
-  app.use(helmet());
-  app.use(hpp());
-} else {
-  app.use(morgan('dev'));
-}
-```
