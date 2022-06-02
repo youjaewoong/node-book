@@ -209,14 +209,21 @@ const logger = createLogger({
     new transports.File({ filename: 'error.log', level: 'error' })
   ],
 })
+
+console.log
+console.info
+console.warn
+console.error
+
+if (process.env.NODE_ENV !== 'prodction') {
+  logger.add(new transports.Console({ format: format.simple() }))
+}
 ```
 
 ### winston 적용하기
 기존의 console 대신 logger로 사용한다 생각하면 됨
 ```
 // app.js
-const { sequelize } = require('./models');
-const passportConfig = require('./passport');
 const logger = require('./logger');
 
 app.use((req, res, next) => {
